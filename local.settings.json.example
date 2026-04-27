@@ -1,0 +1,25 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+
+    "SYNC_ENVIRONMENT": "staging",
+    "ALLOW_NEW_FLIGHTS": "false",
+    "SYNC_TIMER_SCHEDULE": "0 */15 * * * *",
+
+    "FL3XX_BASE_URL": "https://app.fl3xx.us",
+    "FL3XX_API_KEY": "",
+
+    "APTAERO_BASE_URL": "https://api-5cc.public.aptaero.com",
+    "APTAERO_USERNAME": "",
+    "APTAERO_PASSWORD": "",
+
+    "AZURE_TABLE_STORAGE_CONNECTION_STRING": "",
+
+    "AZURE_SQL_SERVER": "",
+    "AZURE_SQL_DATABASE": "",
+    "AZURE_SQL_USERNAME": "",
+    "AZURE_SQL_PASSWORD": ""
+  }
+}

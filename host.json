@@ -1,0 +1,16 @@
+{
+    "version": "2.0",
+    "logging": {
+        "applicationInsights": {
+            "samplingSettings": {
+                "isEnabled": true,
+                "excludedTypes": "Request"
+            }
+        },
+        "logLevel": {
+            "default": "Information",
+            "Function.fl3xxAptaeroSyncTimer": "Information"
+        }
+    },
+    "functionTimeout": "00:10:00"
+}
