@@ -12,7 +12,6 @@ permissions:
 
 env:
   AZURE_FUNCTIONAPP_NAME: func-fl3xx-aptaero-sync-prod
-  AZURE_RESOURCE_GROUP: GA_DevOps
   NODE_VERSION: "20.x"
 
 jobs:
@@ -50,3 +49,5 @@ jobs:
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: .
+          remote-build: true
+          respect-funcignore: true
