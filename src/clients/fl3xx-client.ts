@@ -123,7 +123,7 @@ export class FL3XXClient {
       throw new Error(`FL3XX API error ${response.status}: ${this.sanitizeError(response.status, errorText)}`);
     }
 
-    return response.json();
+    return (await response.json()) as T;
   }
 
   async testConnection(): Promise<{ success: boolean; message: string }> {

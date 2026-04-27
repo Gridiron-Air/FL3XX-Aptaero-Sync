@@ -282,6 +282,8 @@ export class AzureSqlStorage implements IStorage {
       syncFlights: config.syncFlights ?? true,
       syncAircraft: config.syncAircraft ?? true,
       syncCrew: config.syncCrew ?? true,
+      lastChangedBy: null,
+      lastChangedAt: null,
     };
   }
 
@@ -401,6 +403,8 @@ export class AzureSqlStorage implements IStorage {
       syncFlights: Boolean(row.sync_flights),
       syncAircraft: Boolean(row.sync_aircraft),
       syncCrew: Boolean(row.sync_crew),
-    };
+      lastChangedBy: row.last_changed_by ?? null,
+      lastChangedAt: row.last_changed_at ?? null,
+};
   }
 }

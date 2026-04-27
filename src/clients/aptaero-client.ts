@@ -240,7 +240,7 @@ export class AptaeroClient {
       throw new Error(`Aptaero API error ${response.status}: ${this.sanitizeError(response.status, errorText)}`);
     }
 
-    return response.json();
+    return (await response.json()) as T;
   }
 
   async testConnection(): Promise<{ success: boolean; message: string }> {
@@ -964,9 +964,16 @@ export class AptaeroClient {
         return await this.deactivateMasterCrewMember(crewId, badgeNo, carrierCode);
       }
       
-      const result = await response.json();
+      const result = (await response.json()) as {
+        Success?: boolean;
+        Error?: {
+          Message?: string;
+        };
+        Message?: string;
+      };
+
       console.log('DeleteMasterCrewMember response:', result);
-      
+
       if (result.Success === true) {
         console.log(`DeleteMasterCrewMember success: ID=${crewId}, Badge=${badgeNo}`);
         return { success: true, message: `Master crew member ${badgeNo} deleted successfully` };
@@ -1097,9 +1104,16 @@ export class AptaeroClient {
         return { success: false, message: `Aptaero API error ${response.status}: ${text}` };
       }
       
-      const result = await response.json();
+      const result = (await response.json()) as {
+        Success?: boolean;
+        Error?: {
+          Message?: string;
+        };
+        Message?: string;
+      };
+
       console.log('DeleteCrewMember response:', result);
-      
+
       if (result.Success === true) {
         return { success: true, message: 'Crew member removed from flight' };
       }
