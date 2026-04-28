@@ -37,6 +37,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Prune dev dependencies
+        run: npm prune --omit=dev
+
       - name: Azure login
         uses: azure/login@v2
         with:
@@ -49,5 +52,5 @@ jobs:
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: .
-          remote-build: true
+          remote-build: false
           respect-funcignore: true
