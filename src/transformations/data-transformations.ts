@@ -33,15 +33,52 @@ export function normalizeFlightNumber(flightNo: string | undefined): string {
 }
 
 /**
- * Convert ICAO airport code (4 letters) to IATA (3 letters)
- * Takes the last 3 characters of ICAO codes
- * Examples: "KAFW" -> "AFW", "KACT" -> "ACT", "DEN" -> "DEN"
+ * ICAO → IATA airport mappings for ICAO codes that cannot be safely converted
+ * by dropping the first character.
+ *
+ * Do NOT add a generic `slice(1)` fallback for all 4-character ICAO codes.
+ * That caused bad airport matches, for example SGAS → GAS, where GAS is
+ * Garissa, Kenya. SGAS should map to ASU in Paraguay.
+ */
+const ICAO_TO_IATA_OVERRIDES: Record<string, string> = {
+  SGAS: 'ASU', // Asunción / Silvio Pettirossi, Paraguay
+  SBGR: 'GRU', // São Paulo / Guarulhos, Brazil
+  HKGA: 'GAS', // Garissa, Kenya
+};
+
+/**
+ * Convert an airport identifier to the IATA code expected by Aptaero.
+ *
+ * Rules:
+ * - 3-letter codes are already IATA and are returned unchanged.
+ * - Known ICAO codes are converted through explicit ICAO → IATA mappings.
+ * - Contiguous U.S. K-prefixed ICAO codes usually map as KXXX → XXX
+ *   (KAFW → AFW, KACT → ACT). This limited fallback preserves existing
+ *   U.S. behavior without corrupting international airports.
+ * - Unknown 4-letter ICAO codes are returned unchanged and logged instead
+ *   of being silently truncated to a potentially wrong airport.
  */
 export function toIATA(code: string): string {
   const cleaned = (code || '').toUpperCase().trim();
-  if (cleaned.length === 4) {
-    return cleaned.slice(1);
+
+  if (/^[A-Z]{3}$/.test(cleaned)) {
+    return cleaned;
   }
+
+  if (/^[A-Z]{4}$/.test(cleaned)) {
+    const mapped = ICAO_TO_IATA_OVERRIDES[cleaned];
+    if (mapped) {
+      return mapped;
+    }
+
+    if (cleaned.startsWith('K')) {
+      return cleaned.slice(1);
+    }
+
+    console.warn(`[Airport Mapping] No ICAO→IATA mapping found for ${cleaned}. Leaving value unchanged; do not truncate this value.`);
+    return cleaned;
+  }
+
   return cleaned;
 }
 
