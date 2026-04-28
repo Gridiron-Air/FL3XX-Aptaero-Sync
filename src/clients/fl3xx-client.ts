@@ -2,6 +2,73 @@ import type { Environment } from "../../shared/schema.js";
 
 export type FlightLifecycleState = 'open' | 'cancelled' | 'closed';
 
+function normalizeAirportCode(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const cleaned = value.toUpperCase().trim();
+  return cleaned || undefined;
+}
+
+function pickAirportIataFromFlight(flight: any, direction: 'departure' | 'arrival'): string | undefined {
+  const airportObject = direction === 'departure'
+    ? (flight.departureAirport || flight.airportFromObject || flight.fromAirport || flight.originAirport)
+    : (flight.arrivalAirport || flight.airportToObject || flight.toAirport || flight.destinationAirport);
+
+  const directCandidates = direction === 'departure'
+    ? [
+        flight.departureAirportIata,
+        flight.departureAirportIATA,
+        flight.departureIata,
+        flight.departureIATA,
+        flight.airportFromIata,
+        flight.airportFromIATA,
+        flight.fromIata,
+        flight.fromIATA,
+        flight.originIata,
+        flight.originIATA,
+      ]
+    : [
+        flight.arrivalAirportIata,
+        flight.arrivalAirportIATA,
+        flight.arrivalIata,
+        flight.arrivalIATA,
+        flight.airportToIata,
+        flight.airportToIATA,
+        flight.toIata,
+        flight.toIATA,
+        flight.destinationIata,
+        flight.destinationIATA,
+      ];
+
+  const objectCandidates = airportObject ? [
+    airportObject.iata,
+    airportObject.IATA,
+    airportObject.iataCode,
+    airportObject.IATACode,
+  ] : [];
+
+  for (const candidate of [...objectCandidates, ...directCandidates]) {
+    const cleaned = normalizeAirportCode(candidate);
+    if (cleaned && /^[A-Z0-9]{3}$/.test(cleaned)) {
+      return cleaned;
+    }
+  }
+
+  return undefined;
+}
+
+function pickRawAirportCodeFromFlight(flight: any, direction: 'departure' | 'arrival'): string {
+  const candidates = direction === 'departure'
+    ? [flight.realAirportFrom, flight.airportFrom]
+    : [flight.realAirportTo, flight.airportTo];
+
+  for (const candidate of candidates) {
+    const cleaned = normalizeAirportCode(candidate);
+    if (cleaned) return cleaned;
+  }
+
+  return 'N/A';
+}
+
 export interface FL3XXFlight {
   id: string;
   flightNumber: string;
@@ -71,6 +138,7 @@ export class FL3XXClient {
   private baseUrl: string;
   private authToken: string;
   private cachedUserMap: Map<string, any> | null = null;  // Cache users map for supplemental data lookups
+  private airportIataCache: Map<string, string> = new Map();
 
   constructor(config: FL3XXConnectionConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
@@ -124,6 +192,40 @@ export class FL3XXClient {
     }
 
     return (await response.json()) as T;
+  }
+
+
+  private async resolveAirportIataFromFL3XX(airportCode: string): Promise<string> {
+    const cleaned = normalizeAirportCode(airportCode);
+    if (!cleaned || cleaned === 'N/A') return 'N/A';
+
+    // If the flight payload already gave us a 3-character code, preserve it.
+    // Aptaero wants IATA, and the FL3XX airport endpoint also accepts IATA.
+    if (/^[A-Z0-9]{3}$/.test(cleaned)) {
+      return cleaned;
+    }
+
+    const cached = this.airportIataCache.get(cleaned);
+    if (cached) return cached;
+
+    try {
+      const airport = await this.request<any>(`/api/external/airports/${encodeURIComponent(cleaned)}`);
+      const resolved = normalizeAirportCode(airport?.iata);
+
+      if (resolved && /^[A-Z0-9]{3}$/.test(resolved)) {
+        console.log(`[Airport Mapping] ${cleaned} resolved through FL3XX airport endpoint to ${resolved}`);
+        this.airportIataCache.set(cleaned, resolved);
+        return resolved;
+      }
+
+      console.warn(`[Airport Mapping] FL3XX airport endpoint returned no IATA for ${cleaned}; falling back to original code.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[Airport Mapping] Failed to resolve ${cleaned} through FL3XX airport endpoint: ${message}. Falling back to original code.`);
+    }
+
+    this.airportIataCache.set(cleaned, cleaned);
+    return cleaned;
   }
 
   async testConnection(): Promise<{ success: boolean; message: string }> {
@@ -188,10 +290,14 @@ export class FL3XXClient {
       
       const now = new Date();
       
-      return flights.map((f: any) => {
-        // FL3XX actual field mappings based on API response
-        const depAirport = f.airportFrom || f.realAirportFrom || 'N/A';
-        const arrAirport = f.airportTo || f.realAirportTo || 'N/A';
+      return Promise.all(flights.map(async (f: any) => {
+        // FL3XX actual field mappings based on API response.
+        // Prefer IATA values from the flight payload if present. Otherwise, ask FL3XX's
+        // airport endpoint for the IATA code instead of guessing by truncating ICAO.
+        const rawDepAirport = pickAirportIataFromFlight(f, 'departure') || pickRawAirportCodeFromFlight(f, 'departure');
+        const rawArrAirport = pickAirportIataFromFlight(f, 'arrival') || pickRawAirportCodeFromFlight(f, 'arrival');
+        const depAirport = await this.resolveAirportIataFromFL3XX(rawDepAirport);
+        const arrAirport = await this.resolveAirportIataFromFL3XX(rawArrAirport);
         
         // Times - use LOCAL times as requested (blockOffEstLocal/blockOnEstLocal)
         const depTime = f.blockOffEstLocal || f.blockOffEstUTC || f.etd || new Date().toISOString();
@@ -289,7 +395,7 @@ export class FL3XXClient {
           accountId: f.accountId || f.account?.id || undefined,
           accountName: f.accountName || f.account?.name || f.customerName || undefined,
         };
-      });
+      }));
     } catch (error) {
       console.error('Error fetching FL3XX flights:', error);
       throw error;
