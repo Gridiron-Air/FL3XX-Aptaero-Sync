@@ -1,6 +1,6 @@
 import type { Environment } from "../../shared/schema.js";
 import { storage, initializeStorage } from "../storage/storage.js";
-import { createFL3XXClient } from "../clients/fl3xx-client.js";
+import { createFL3XXClient, type FL3XXFlight } from "../clients/fl3xx-client.js";
 import {
   createAptaeroClient,
   type AddMasterCrewMemberRequest
@@ -75,6 +75,28 @@ const MISSING_DATE_FUTURE = "2035-01-01";
 const MISSING_DATE_FUTURE_ISO = "2035-01-01T00:00:00";
 const MAX_PASSPORT_EXPIRY_YEAR = 2050;
 const DEFAULT_POSTAL_CODE = "75001";
+
+function firstPresent(...values: Array<string | number | null | undefined>): string {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return "unknown";
+}
+
+function formatFlightForLog(flight: FL3XXFlight): string {
+  const flightNumber = firstPresent(flight.flightNumber);
+  const route = `${firstPresent(flight.departure)}-${firstPresent(flight.arrival)}`;
+  const departure = firstPresent(
+    flight.blockOffEstLocal,
+    flight.dateFrom,
+    flight.departureTime,
+    flight.etd
+  );
+
+  return `fl3xxFlightId=${flight.id} flightNumber=${flightNumber} route=${route} departure=${departure}`;
+}
 
 function normalizePostalCode(postalCode: string | undefined): string {
   if (!postalCode) return DEFAULT_POSTAL_CODE;
@@ -711,6 +733,7 @@ export async function runFl3xxAptaeroSync(options: RunSyncOptions): Promise<Sync
     console.log('=== PHASE 3: Crew Manifest Assignment ===');
     
     let crewManifestsAssigned = 0, crewManifestsSkipped = 0, crewManifestErrors = 0;
+    let crewSkippedNoSegmentId = 0, crewSkippedNoCrew = 0;
     
     try {
       // Re-fetch updated mappings after any new flights were created
@@ -730,8 +753,9 @@ export async function runFl3xxAptaeroSync(options: RunSyncOptions): Promise<Sync
         const mapping = updatedMappingsByFL3XXId.get(fl3xxFlightId);
         
         if (!mapping?.airlineChoiceFlightId) {
-          console.log(`Skipping crew assignment for ${fl3xxFlightId}: No Aptaero segment ID`);
+          console.log(`[Crew Manifest Skipped] reason=NO_APTAERO_SEGMENT_ID ${formatFlightForLog(flight)}`);
           crewManifestsSkipped++;
+          crewSkippedNoSegmentId++;
           continue;
         }
         
@@ -742,8 +766,9 @@ export async function runFl3xxAptaeroSync(options: RunSyncOptions): Promise<Sync
           const fl3xxFlightCrew = await fl3xxClient.getFlightCrew(String(flight.id));
           
           if (!fl3xxFlightCrew || fl3xxFlightCrew.length === 0) {
-            console.log(`No crew assigned in FL3XX for flight ${flight.id}`);
+            console.log(`[Crew Manifest Skipped] reason=NO_CREW_ASSIGNED_IN_FL3XX ${formatFlightForLog(flight)}`);
             crewManifestsSkipped++;
+            crewSkippedNoCrew++;
             continue;
           }
           
@@ -786,8 +811,14 @@ export async function runFl3xxAptaeroSync(options: RunSyncOptions): Promise<Sync
         status: crewManifestErrors > 0 ? "warning" : "success",
         source: "fl3xx",
         environment,
-        details: `Crew manifests: ${crewManifestsAssigned} assigned, ${crewManifestsSkipped} skipped, ${crewManifestErrors} errors`,
-        metadata: { assigned: crewManifestsAssigned, skipped: crewManifestsSkipped, errors: crewManifestErrors },
+        details: `Crew manifests: ${crewManifestsAssigned} assigned, ${crewManifestsSkipped} skipped (${crewSkippedNoSegmentId} no Aptaero segment ID, ${crewSkippedNoCrew} no crew in FL3XX), ${crewManifestErrors} errors`,
+        metadata: {
+          assigned: crewManifestsAssigned,
+          skipped: crewManifestsSkipped,
+          skippedNoAptaeroSegmentId: crewSkippedNoSegmentId,
+          skippedNoCrewInFL3XX: crewSkippedNoCrew,
+          errors: crewManifestErrors
+        },
       });
     } catch (err) {
       console.error('Phase 3 crew manifest assignment failed:', err);
