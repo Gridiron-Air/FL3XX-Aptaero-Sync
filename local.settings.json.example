@@ -6,7 +6,7 @@
 
     "SYNC_ENVIRONMENT": "staging",
     "ALLOW_NEW_FLIGHTS": "false",
-    "SYNC_TIMER_SCHEDULE": "0 */15 * * * *",
+    "SYNC_TIMER_SCHEDULE": "0 0 */12 * * *",
 
     "FL3XX_BASE_URL": "https://app.fl3xx.us",
     "FL3XX_API_KEY": "",

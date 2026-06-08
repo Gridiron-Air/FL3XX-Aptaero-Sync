@@ -3,7 +3,7 @@ import { runFl3xxAptaeroSync } from "../sync/runSync.js";
 import { getBooleanSetting, getSyncEnvironment } from "../config/environment.js";
 
 app.timer("fl3xxAptaeroSyncTimer", {
-  schedule: process.env.SYNC_TIMER_SCHEDULE || "0 */15 * * * *",
+  schedule: process.env.SYNC_TIMER_SCHEDULE || "0 0 */12 * * *",
   runOnStartup: false,
   handler: async (_timer: Timer, context: InvocationContext): Promise<void> => {
     const environment = getSyncEnvironment();
