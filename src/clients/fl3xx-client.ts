@@ -1,4 +1,5 @@
 import type { Environment } from "../../shared/schema.js";
+import { roleToStatusOnBoard } from "../transformations/data-transformations.js";
 
 export type FlightLifecycleState = 'open' | 'cancelled' | 'closed';
 
@@ -794,25 +795,9 @@ export class FL3XXClient {
         // This comes from the crew position on flights, e.g., CMD, FO, FA, MED1, MEDIC, GROUND_INSTRUCTOR
         const crewPositionRole = c.crewPosition?.role || c.role || c.dutyCode || '';
         
-        // StatusOnBoard mapping based on CrewPosition.role code:
-        // CMD or FO → 1 (Pilot)
-        // FA or MED1 or MEDIC → 2 (Flight Attendant/Medical)
-        // GROUND_INSTRUCTOR → 4 (Other)
-        // Fallback to Staff roles if no CrewPosition.role
-        let statusOnBoard = 4; // Default to Other
-        const roleCode = crewPositionRole.toUpperCase();
-        
-        if (roleCode === 'CMD' || roleCode === 'FO') {
-          statusOnBoard = 1;
-        } else if (roleCode === 'FA' || roleCode === 'MED1' || roleCode === 'MEDIC') {
-          statusOnBoard = 2;
-        } else if (roleCode === 'GROUND_INSTRUCTOR') {
-          statusOnBoard = 4;
-        } else if (staffRoles.includes('Pilot')) {
-          statusOnBoard = 1;
-        } else if (staffRoles.includes('Flight Attendant')) {
-          statusOnBoard = 2;
-        }
+        // Use one mapping for both the master crew list and flight manifests.
+        // FL3XX categorizes mechanics under the Ramp staff role.
+        const statusOnBoard = roleToStatusOnBoard(crewPositionRole, staffRoles);
         
         // Store the role code for display - use the filtering criteria roles
         let roleCodeDisplay = 'Other';

@@ -84,14 +84,22 @@ export function toIATA(code: string): string {
 
 /**
  * Map FL3XX CrewPosition.role to Aptaero StatusOnBoard value
- * 1 = Pilot (CMD or FO)
- * 2 = Flight Attendant (MEDIC, MED1, or FA)
+ * 1 = Pilot (CMD, FO, or Pilot staff role)
+ * 2 = Flight Attendant (MEDIC, MED1, FA, or Flight Attendant staff role)
+ * 3 = Mechanic (MECHANIC, MECH, MX, or Ramp staff role)
  * 4 = Other (any other role)
  */
-export function roleToStatusOnBoard(role: string): number {
-  const r = (role || '').toUpperCase();
+export function roleToStatusOnBoard(role: string, staffRoles: string[] = []): number {
+  const r = (role || '').toUpperCase().trim().replace(/[\s-]+/g, '_');
   if (r === 'CMD' || r === 'FO') return 1;
   if (r === 'MEDIC' || r === 'MED1' || r === 'FA') return 2;
+  if (r === 'MECHANIC' || r === 'MECH' || r === 'MX' || r === 'RAMP') return 3;
+
+  const normalizedStaffRoles = staffRoles.map(staffRole => staffRole.toUpperCase().trim());
+  if (normalizedStaffRoles.includes('PILOT')) return 1;
+  if (normalizedStaffRoles.includes('FLIGHT ATTENDANT')) return 2;
+  if (normalizedStaffRoles.includes('RAMP') || normalizedStaffRoles.includes('MECHANIC')) return 3;
+
   return 4;
 }
 

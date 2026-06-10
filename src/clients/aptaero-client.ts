@@ -119,7 +119,7 @@ export interface AddMasterCrewMemberRequest {
   DOB?: string; // Date of birth
   Nationality?: string; // 3-letter country code
   Residence?: string; // 3-letter country code
-  StatusOnBoard: number; // 1=Pilot, 2=Flight Attendant, 4=Other
+  StatusOnBoard: number; // 1=Pilot, 2=Flight Attendant, 3=Mechanic, 4=Other
   IsActive?: boolean;
   Weight?: number;
   HomeAddress?: {
@@ -745,7 +745,7 @@ export class AptaeroClient {
             CarrierCode: carrierCode,
             ExternalID: crew.ExternalID || '',
             BadgeNo: crew.BadgeNo || '',
-            StatusOnBoard: typeof crew.StatusOnBoard === 'number' ? crew.StatusOnBoard : 2, // int: 1=pilot, 2=FA, 4=other
+            StatusOnBoard: typeof crew.StatusOnBoard === 'number' ? crew.StatusOnBoard : 2, // int: 1=pilot, 2=FA, 3=mechanic, 4=other
             LastName: (crew.LastName || '').toUpperCase(),
             FirstName: (crew.FirstName || '').toUpperCase(),
             MiddleName: (crew.MiddleName || '').toUpperCase(),
