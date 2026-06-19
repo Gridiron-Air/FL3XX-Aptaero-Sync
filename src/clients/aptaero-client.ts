@@ -723,6 +723,25 @@ export class AptaeroClient {
       }
 
       console.log(`ImportMasterCrewList: Importing ${crewMembers.length} crew members`);
+
+      const missingDobCrew = crewMembers.filter(crew => !crew.DOB || crew.DOB.trim() === '');
+      if (missingDobCrew.length > 0) {
+        const affectedCrew = missingDobCrew
+          .slice(0, 25)
+          .map(crew => `${crew.FirstName || 'Missing'} ${crew.LastName || 'Missing'} badge=${crew.BadgeNo || 'unknown'} externalId=${crew.ExternalID || 'unknown'}`);
+        console.error(`SAFETY BLOCK: ImportMasterCrewList received ${missingDobCrew.length} crew records without DOB. Refusing to write placeholder DOBs.`, affectedCrew);
+        return {
+          success: false,
+          message: `ImportMasterCrewList blocked: ${missingDobCrew.length} crew records are missing DOB`,
+          stats: {
+            total: crewMembers.length,
+            newRecords: 0,
+            changedRecords: 0,
+            errorRecords: missingDobCrew.length,
+            duplicateRecords: 0,
+          },
+        };
+      }
       
       // Build the bulk import payload using exact Aptaero format from documentation:
       // - Top level: CarrierCode + MasterCrewList array
@@ -734,7 +753,7 @@ export class AptaeroClient {
         CarrierCode: carrierCode,
         MasterCrewList: crewMembers.map(crew => {
           // Extract DOB in YYYY-MM-DD format (strip time component if present)
-          const dobFormatted = crew.DOB ? crew.DOB.split('T')[0] : '1950-01-01';
+          const dobFormatted = crew.DOB!.split('T')[0];
           
           // Extract passport expiry in YYYY-MM-DD format
           const passportExpiry = crew.TravelDocument1?.DocExpiry 

@@ -126,6 +126,15 @@ interface CrewPayloadResult {
   defaultedFields: string[];
 }
 
+function formatCrewForLog(crew: any): string {
+  const name = `${firstPresent(crew.firstName)} ${firstPresent(crew.lastName)}`;
+  const badge = firstPresent(crew.badgeNo);
+  const externalId = firstPresent(crew.id);
+  const role = firstPresent(crew.roleCode, crew.statusOnBoard);
+
+  return `${name} badge=${badge} externalId=${externalId} role=${role}`;
+}
+
 /**
  * Copy this function body exactly from the old server/routes.ts:
  *
@@ -397,11 +406,48 @@ export async function runFl3xxAptaeroSync(options: RunSyncOptions): Promise<Sync
       console.log(`Aptaero Active Crew (before): ${activeCrewBefore}`);
       
       // Build payloads for ALL FL3XX crew
-      const crewPayloads = fl3xxMasterCrew.map(fl3xxCrew => {
-        const { payload } = buildMasterCrewPayloadWithDefaults(fl3xxCrew, 'GI');
+      const crewPayloadResults = fl3xxMasterCrew.map(fl3xxCrew => {
+        const { payload, defaultedFields } = buildMasterCrewPayloadWithDefaults(fl3xxCrew, 'GI');
         payload.IsActive = true;
-        return payload;
+        return { fl3xxCrew, payload, defaultedFields };
       });
+
+      const missingDobCrew = crewPayloadResults.filter(result => result.defaultedFields.includes('DOB'));
+      if (missingDobCrew.length > 0) {
+        crewErrors = missingDobCrew.length;
+        console.error(`SAFETY BLOCK: ${missingDobCrew.length} FL3XX crew records are missing DOB. Bulk Master Crew List import blocked to avoid writing placeholder DOB ${MISSING_DATE_PAST}.`);
+        for (const result of missingDobCrew.slice(0, 25)) {
+          console.error(`  - ${formatCrewForLog(result.fl3xxCrew)}`);
+        }
+        if (missingDobCrew.length > 25) {
+          console.error(`  ... and ${missingDobCrew.length - 25} more`);
+        }
+
+        await storage.createLog({
+          eventType: "Crew Sync",
+          status: "error",
+          source: "fl3xx",
+          environment,
+          details: `Bulk crew sync blocked: ${missingDobCrew.length} FL3XX crew records are missing DOB`,
+          metadata: {
+            blocked: true,
+            reason: "missing_dob",
+            missingDobCount: missingDobCrew.length,
+            missingDobCrew: missingDobCrew.map(result => ({
+              firstName: result.fl3xxCrew.firstName || '',
+              lastName: result.fl3xxCrew.lastName || '',
+              badgeNo: result.fl3xxCrew.badgeNo || '',
+              externalId: String(result.fl3xxCrew.id || ''),
+              roleCode: result.fl3xxCrew.roleCode || '',
+              statusOnBoard: result.fl3xxCrew.statusOnBoard || 4,
+            })),
+          },
+        });
+
+        throw new Error(`Safety block: ${missingDobCrew.length} FL3XX crew records are missing DOB`);
+      }
+
+      const crewPayloads = crewPayloadResults.map(result => result.payload);
       
       console.log(`Sending ${crewPayloads.length} crew to Aptaero bulk import...`);
       
