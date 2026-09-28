@@ -537,7 +537,7 @@ export async function runFl3xxAptaeroSync(options: RunSyncOptions): Promise<Sync
       eligibleFlights = fl3xxData.flights.filter(f => {
         // Exclude mock/test tail numbers
         const tailNo = (f.aircraft || '').toUpperCase();
-        if (tailNo.includes('MOCK') || tailNo === 'N777AZ') return false;
+        if (tailNo.includes('MOCK')) return false;
         
         // Skip closed flights (FL3XX lifecycle, not completion status)
         if (f.lifecycleState === 'closed') return false;
